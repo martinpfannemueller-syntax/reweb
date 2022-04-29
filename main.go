@@ -24,6 +24,7 @@ import (
 var Version string
 
 var ApplicationPort string
+var ApplicationOrigin string
 var ApplicationExec string
 var ForceGzip bool
 var WaitCode string
@@ -142,7 +143,7 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 
 	req, err := http.NewRequest(
 		event.HTTPMethod,
-		"http://localhost:"+ApplicationPort+path,
+		ApplicationOrigin+":"+ApplicationPort+path,
 		bytes.NewReader(body),
 	)
 
@@ -332,11 +333,16 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 
 func main() {
 	ApplicationExec = os.Getenv("REWEB_APPLICATION_EXEC")
+	ApplicationOrigin = os.Getenv("REWEB_APPLICATION_ORIGIN")
 	ApplicationPort = os.Getenv("REWEB_APPLICATION_PORT")
 	ForceGzip = (os.Getenv("REWEB_FORCE_GZIP") != "")
 	WaitPath = os.Getenv("REWEB_WAIT_PATH")
 	WaitCode = os.Getenv("REWEB_WAIT_CODE")
 	Debug = (os.Getenv("REWEB_DEBUG") != "")
+
+	if ApplicationOrigin == "" {
+		ApplicationOrigin = "http://localhost"
+	}
 
 	if WaitPath == "" {
 		WaitPath = "/"
@@ -372,7 +378,7 @@ func main() {
 			},
 		}
 
-		resp, err := httpClient.Get("http://localhost:" + ApplicationPort + WaitPath)
+		resp, err := httpClient.Get(ApplicationOrigin + ":" + ApplicationPort + WaitPath)
 		if err != nil {
 			if tries%10 == 0 {
 				fmt.Printf(PrefixInfo+"SERVICE NOT UP: %v\n", err)
