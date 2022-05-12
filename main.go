@@ -48,7 +48,7 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 
 	var err error
 	var albRequest events.ALBTargetGroupRequest
-	var apiGwRequest events.APIGatewayV2HTTPRequest
+	var apiGwRequest events.APIGatewayProxyRequest
 
 	type Event struct {
 		Body            string
@@ -61,8 +61,8 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 
 	debug("=== Invoke =============================================================")
 
-	//debug("EVENT:")
-	//debug(string(payload))
+	debug("EVENT:")
+	debug(string(payload))
 
 	err = json.NewDecoder(bytes.NewReader(payload)).Decode(&apiGwRequest)
 	if err != nil {
@@ -80,8 +80,8 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 		event = Event{
 			Body:            apiGwRequest.Body,
 			IsBase64Encoded: apiGwRequest.IsBase64Encoded,
-			Path:            apiGwRequest.RequestContext.HTTP.Path,
-			HTTPMethod:      apiGwRequest.RequestContext.HTTP.Method,
+			Path:            apiGwRequest.Path,
+			HTTPMethod:      apiGwRequest.HTTPMethod,
 		}
 	} else {
 		// otherwise, we'll assume we were not invoked via API Gateway but via ALB instead.
@@ -122,9 +122,15 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 	debug("PATH: " + path)
 
 	if !isALB {
-		if apiGwRequest.RawQueryString != "" {
+		if len(apiGwRequest.MultiValueQueryStringParameters) > 0 {
 			debug("PATH NEEDS QS")
-			path += "?" + apiGwRequest.RawQueryString
+			kv := []string{}
+			for mvqsp, v := range albRequest.MultiValueQueryStringParameters {
+				for _, s := range v {
+					kv = append(kv, mvqsp+"="+s)
+				}
+			}
+			path += "?" + strings.Join(kv, "&")
 			debug("PATH POST QS: " + path)
 		}
 	} else {
@@ -173,14 +179,10 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 			req.Header[http.CanonicalHeaderKey(h)] = v
 		}
 	} else {
-		// API Gateway: V2 payload *never* uses MultiValue{Headers,QS}, so everything
-		// is in .Headers as usual -- except for Cookies, of course.
+		// API Gateway: Everything is in .Headers as usual
 		for h, v := range apiGwRequest.Headers {
 			req.Header.Set(h, v)
 		}
-
-		// set Cookie header from event.Cookies (it gets eaten by API Gateway and stored there)
-		req.Header.Set("Cookie", strings.Join(apiGwRequest.Cookies, "; "))
 
 	}
 
