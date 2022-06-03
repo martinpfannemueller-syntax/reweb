@@ -300,12 +300,11 @@ func (h lambdaHandler) Invoke(ctx context.Context, payload []byte) ([]byte, erro
 	}
 
 	if !isALB {
-		r := events.APIGatewayV2HTTPResponse{
+		r := events.APIGatewayProxyResponse{
 			StatusCode:      resp.StatusCode,
 			Body:            respBody,
 			IsBase64Encoded: true,
 			Headers:         responseHeaders,
-			Cookies:         responseCookies,
 		}
 		jsonResponse, _ := json.Marshal(r)
 		debug(string(jsonResponse))
